@@ -7,6 +7,7 @@ use core::convert::TryInto;
 use core::time::Duration;
 
 use iso7816::Status;
+use littlefs2_core::{path, Path};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -75,7 +76,7 @@ impl Runtime {
 impl Persistent {}
 
 impl State {
-    const FILENAME: &'static str = "state.bin";
+    const FILENAME: &'static Path = path!("state.bin");
 
     pub fn new(location: Location) -> Self {
         Self {

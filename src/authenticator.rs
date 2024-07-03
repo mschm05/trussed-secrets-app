@@ -11,6 +11,7 @@ use core::time::Duration;
 use flexiber::EncodableHeapless;
 use heapless_bytes::Bytes;
 use iso7816::{Data, Status};
+use littlefs2_core::{path, Path, PathBuf};
 use trussed::types::Location;
 use trussed::types::{KeyId, Message};
 use trussed::{self, client, syscall, try_syscall};
@@ -29,6 +30,8 @@ use crate::{
 
 #[cfg(feature = "brute-force-delay")]
 use crate::REQUIRED_DELAY_ON_FAILED_VERIFICATION;
+
+const CREDENTIAL_DIRECTORY: &Path = path!("cred");
 
 /// The options for the authenticator app.
 #[derive(Clone, Copy, Debug)]
@@ -211,10 +214,6 @@ where
         + client::Chacha8Poly1305
         + trussed_auth::AuthClient,
 {
-    fn credential_directory() -> trussed::types::PathBuf {
-        trussed::types::PathBuf::from("cred")
-    }
-
     /// Create new Authenticator instance
     pub fn new(trussed: T, options: Options) -> Self {
         Self {
@@ -507,7 +506,7 @@ where
             // we will rewind the state and restart from there accordingly
             let first_file = try_syscall!(self.trussed.read_dir_files_first(
                 self.options.location,
-                Self::credential_directory(),
+                CREDENTIAL_DIRECTORY.into(),
                 None
             ))
             .map_err(|_| Status::KeyReferenceNotFound)?
@@ -669,7 +668,7 @@ where
         }
     }
 
-    fn filename_for_label(&mut self, label: &[u8]) -> trussed::types::PathBuf {
+    fn filename_for_label(&mut self, label: &[u8]) -> PathBuf {
         let label_hash = syscall!(self.trussed.hash_sha256(label)).hash;
 
         // todo: maybe use a counter instead (put it in our persistent state).
@@ -680,8 +679,8 @@ where
             hex_filename[2 * i + 1] = LOOKUP[(value & 0xF) as usize];
         }
 
-        let filename = trussed::types::PathBuf::from(hex_filename.as_ref());
-        let mut path = Self::credential_directory();
+        let filename = PathBuf::try_from(hex_filename.as_ref()).unwrap();
+        let mut path = PathBuf::from(CREDENTIAL_DIRECTORY);
         path.push(&filename);
         info_now!("filename: {}", path.as_str_ref_with_trailing_nul());
         path
@@ -714,7 +713,7 @@ where
 
         let maybe_credential_enc = syscall!(self.trussed.read_dir_files_first(
             self.options.location,
-            Self::credential_directory(),
+            CREDENTIAL_DIRECTORY.into(),
             None
         ))
         .data;
@@ -1331,7 +1330,7 @@ where
 
         let first_file = try_syscall!(self.trussed.read_dir_files_first(
             self.options.location,
-            Self::credential_directory(),
+            CREDENTIAL_DIRECTORY.into(),
             None
         ))
         .map_err(|_| Status::KeyReferenceNotFound)?
